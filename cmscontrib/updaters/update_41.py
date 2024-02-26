@@ -111,6 +111,11 @@ class Updater:
                 continue
             if v["_class"] in CODENAME_FIELDS:
                 for attr in CODENAME_FIELDS[v["_class"]]:
+                    if not re.match("^[A-Za-z0-9_-]+$", v[attr]):
+                        print("Updating username: " + v[attr])
+                        v[attr] = v[attr].replace("å", "aa").replace("ø", "oe").replace("æ", "ae").replace(" ", "_").replace("@", "AT")
+                        v[attr] = re.sub("(?![A-Za-z0-9_-]).", "", v[attr].replace("\n", "")) 
+                        print("New username: " + v[attr])
                     self.check_codename(v["_class"], attr, v[attr])
             if v["_class"] in FILENAME_FIELDS:
                 for attr in FILENAME_FIELDS[v["_class"]]:
