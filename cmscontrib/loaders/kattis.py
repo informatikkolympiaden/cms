@@ -191,9 +191,11 @@ class KattisLoader(TaskLoader):
         args["time_limit"] = 1.0
         args["memory_limit"] = 2048 * 1024 * 1024
         if conf.get("limits") is not None:
-            if conf["limits"]["time_limit"] is not None:
-                args["time_limit"] = conf["limits"]["time_limit"]
-            if conf["limits"].get("memory") is not None:
+            if "time_limit" in conf["limits"]:
+                args["time_limit"] = float(conf["limits"]["time_limit"])
+            if "time" in conf["limits"]:
+                args["time_limit"] = float(conf["limits"]["time"])
+            if "memory" in conf["limits"]:
                 args["memory_limit"] = conf["limits"]["memory"] * 1024 * 1024
 
         # Builds the parameters that depend on the task type
