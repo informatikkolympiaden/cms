@@ -1049,3 +1049,8 @@ td.token_rules p:last-child {
     background-color: white;
     border: 1px solid #e5e5e5;
 }
+
+.wait_screen_box {
+    text-align: center;
+    transform: scale(1.5);
+}

@@ -364,3 +364,11 @@ class DocumentationHandler(ContestHandler):
                     COMPILATION_MESSAGES=COMPILATION_MESSAGES,
                     EVALUATION_MESSAGES=EVALUATION_MESSAGES,
                     **self.r_params)
+
+class WaitScreenHandler(ContestHandler):
+    """Home page handler.
+
+    """
+    @multi_contest
+    def get(self):
+        self.render("wait_screen.html", **self.r_params)

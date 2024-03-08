@@ -1,0 +1,67 @@
+
+{% extends "base.html" %}
+
+{% block title %}
+    {{ contest.description }}
+{% endblock title %}
+
+{% block js %}
+
+
+    <script>
+var LANGUAGES = {
+{% for lang in contest.languages %}
+    '{{ lang }}': {
+{% for extension in (lang|to_language).source_extensions %}
+        '{{ extension }}': true,
+{% endfor %}
+    },
+{% endfor %}
+};
+
+{% if participation is undefined %}
+var utils = new CMS.CWSUtils("{{ url() }}", "{{ contest_url() }}", "{{ contest.name }}",
+                             0, 0, 0, 0, 0);
+{% else %}
+// FIXME use Date objects
+var utils = new CMS.CWSUtils("{{ url() }}", "{{ contest_url() }}", "{{ contest.name }}",
+                             {{ now|make_timestamp }},
+                             {# What we do is: if timezone is +HH:MM we return the UNIX timestamp + 3600*HH + 60*MM. #}
+                             {{ now.replace(tzinfo=utc).astimezone(timezone).replace(tzinfo=none)|make_timestamp }},
+                             {{ current_phase_begin|make_timestamp }},
+                             {{ current_phase_end|make_timestamp }},
+                             {{ actual_phase }});
+$(document).ready(function () {
+    utils.update_time({% if contest.per_user_time is not none %}true{% else %}false{% endif %});
+    var timer = setInterval(function() {
+        utils.update_time({% if contest.per_user_time is not none %}true{% else %}false{% endif %}, timer);
+    }, 1000);
+    $('#main').css('top', $('#navigation_bar').outerHeight());
+});
+    {% endif %}
+
+{% block additional_js %}{% endblock additional_js %}
+    </script>
+{% endblock js %}
+
+{% block body %}
+{% if participation is defined %}
+    <div class="login_container">
+        <div class="login_box wait_screen_box hero-unit">
+            <h1>{{ user.first_name }} {{ user.last_name }}</h1>
+            <br/>
+            <h2>{{ user.username }}</h2>
+            <br/>
+            <p id="countdown_box">
+                <span id="countdown_label"></span>
+                <span id="countdown"></span>
+            </p>
+        </div>
+    </div>
+{% else %}
+    <div class="login_container">
+      <h1>Not logged inn</h1>
+    </div>
+{% endif %}
+
+{% endblock body %}
