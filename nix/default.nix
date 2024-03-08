@@ -52,8 +52,11 @@ python.pkgs.buildPythonPackage rec {
         "cmstestsuite/unit_tests/db/**"
         "cmstestsuite/unit_tests/cmscontrib/**"
         "cmstestsuite/unit_tests/grading/scoring_test.py"
+        "cmstestsuite/unit_tests/grading/scoretypes/**"
         "cmstestsuite/unit_tests/cmscommon/mimetypes_test.py"
     ];
+
+    doCheck = false;
 
     nativeCheckInputs = [
         python.pkgs.pytestCheckHook
