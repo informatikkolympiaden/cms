@@ -74,19 +74,20 @@ class SubtaskNode:
         return testcases
 
     def to_testcase_group(self):
-        if self.conf["grading"]["aggregation"] != "min" \
-                and self.conf["grading"]["score"] != 0:
-            raise Exception("Testcase group aggregation must be min or score 0")
-
         if len(self.subgroups) > 0:
             raise Exception("Testcase group can't have any subgroups")
 
+        score = self.conf["grading"]["score"]
+
+        if self.conf["grading"]["aggregation"] == "sum":
+            score = score / len(self.testcases)
+
         return [
-            self.conf["grading"]["score"],
+            score,
             len(self.testcases)
         ]
 
-    def to_group_min(self):
+    def to_groups(self):
         if self.conf["grading"]["aggregation"] != "sum":
             raise Exception("Root testcase group aggregation must be sum")
 
@@ -97,12 +98,31 @@ class SubtaskNode:
 
         for subgroup in self.subgroups.values():
             if len(subgroup.subgroups) > 0:
-                groups += subgroup.to_group_min()
+                groups += subgroup.to_groups()
             else:
                 groups += [subgroup.to_testcase_group()]
         return groups
 
+    def score_type(self):
+        score_type = None
+        if self.conf["grading"]["aggregation"] != "sum":
+            raise Exception("Root testcase group aggregation must be sum")
 
+        for subgroup in self.subgroups.values():
+            if len(subgroup.subgroups) > 0:
+                group_type = subgroup.score_type()
+                if score_type is not None and group_type is not None and score_type != group_type:
+                    raise Exception("Different score types")
+                score_type = score_type or group_type
+            else:
+                group_type = subgroup.conf["grading"]["aggregation"]
+                if subgroup.conf["grading"]["score"] == 0:
+                    group_type = None
+                if score_type is not None and group_type is not None and score_type != group_type:
+                    raise Exception("Different score types")
+                score_type = score_type or group_type
+
+        return score_type
 
 class KattisLoader(TaskLoader):
 
@@ -206,8 +226,11 @@ class KattisLoader(TaskLoader):
 
         subtasks = SubtaskNode(Path(self.path).joinpath("data"))
 
-        args["score_type"] = "GroupMin"
-        args["score_type_parameters"] = subtasks.to_group_min()
+        if subtasks.score_type() == "min":
+            args["score_type"] = "GroupMin"
+        else:
+            args["score_type"] = "GroupSum"
+        args["score_type_parameters"] = subtasks.to_groups()
 
         args["task_type"] = "Batch"
         args["task_type_parameters"] = \
