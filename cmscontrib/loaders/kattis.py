@@ -17,6 +17,7 @@ import logging
 import os
 import os.path
 from pathlib import Path
+import glob
 
 import yaml
 
@@ -157,6 +158,10 @@ class KattisLoader(TaskLoader):
         except OSError:
             raise err
 
+        task_type = conf.get("type") or []
+
+        if not isinstance(task_type, list):
+            task_type = [task_type]
 
         args = {}
 
@@ -172,7 +177,6 @@ class KattisLoader(TaskLoader):
         logger.info("Loading parameters for task %s.", name)
 
         # Get statements
-
 
         if get_statement:
             args["statements"] = {}
@@ -218,11 +222,37 @@ class KattisLoader(TaskLoader):
             if "memory" in conf["limits"]:
                 args["memory_limit"] = conf["limits"]["memory"] * 1024 * 1024
 
-        # Builds the parameters that depend on the task type
+        # Look for validator
+        output_validators = glob.glob(os.path.join(self.path, "output_validator", "*"))
+
         args["managers"] = []
 
-        compilation_param = "alone"
-        evaluation_param = "diff"
+        if len(output_validators) > 1:
+            raise Exception("Can only have one output validator")
+        elif len(output_validators) == 1:
+            manager_path = output_validators[0]
+
+            digest = self.file_cacher.put_file_from_path(
+                manager_path,
+                "Output validator for task %s" % task.name)
+
+            args["managers"] += [Manager("manager", digest)]
+            
+            args["task_type"] = "Kattis"
+            args["task_type_parameters"] = []
+
+            if "interactive" in task_type:
+                args["task_type_parameters"] += ["interactive"]
+            else:
+                args["task_type_parameters"] += ["non-interactive"]
+        else:
+            # If no output validator we set task type to Batch
+            compilation_param = "alone"
+            evaluation_param = "diff"
+
+            args["task_type"] = "Batch"
+            args["task_type_parameters"] = \
+                [compilation_param, ["", ""], evaluation_param]
 
         subtasks = SubtaskNode(Path(self.path).joinpath("data"))
 
@@ -231,10 +261,6 @@ class KattisLoader(TaskLoader):
         else:
             args["score_type"] = "GroupSum"
         args["score_type_parameters"] = subtasks.to_groups()
-
-        args["task_type"] = "Batch"
-        args["task_type_parameters"] = \
-            [compilation_param, ["", ""], evaluation_param]
 
         args["testcases"] = []
 

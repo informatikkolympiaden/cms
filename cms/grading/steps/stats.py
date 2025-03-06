@@ -46,6 +46,7 @@ def execution_stats(sandbox, collect_output=False):
         "execution_wall_clock_time": sandbox.get_execution_wall_clock_time(),
         "execution_memory": sandbox.get_memory_used(),
         "exit_status": sandbox.get_exit_status(),
+        "exit_code": sandbox.get_exit_code(),
     }
     if stats["exit_status"] == Sandbox.EXIT_SIGNAL:
         stats["signal"] = sandbox.get_killing_signal()
