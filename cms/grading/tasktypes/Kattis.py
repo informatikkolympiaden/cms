@@ -246,7 +246,7 @@ class Kattis(TaskType):
         box_success_mgr, evaluation_success_mgr, stats_mgr = \
             evaluation_step_after_run(sandbox_mgr)
 
-        if stats_mgr["exit_code"] in [42, 43]:
+        if box_success_mgr and stats_mgr["exit_code"] in [42, 43]:
             evaluation_success_mgr = True
 
         # Coalesce the results of the user sandboxes.
@@ -439,6 +439,7 @@ class Kattis(TaskType):
         manager_digest = job.managers[self.MANAGER_FILENAME].digest
 
         output_dir = tempfile.mkdtemp(dir=config.temp_dir)
+        os.chmod(output_dir, 0o777)
         sandbox_output_dir = "/output"
         sandbox_output_filename = os.path.join(sandbox_output_dir, "output.txt")
 
