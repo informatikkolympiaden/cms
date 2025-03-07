@@ -157,7 +157,7 @@ class ContestHandler(BaseHandler):
         if cookie is None:
             self.clear_cookie(cookie_name)
         elif self.refresh_cookie:
-            self.set_secure_cookie(cookie_name, cookie, expires_days=None)
+            self.set_secure_cookie(cookie_name, cookie, expires_days=30)
 
         return participation
 
