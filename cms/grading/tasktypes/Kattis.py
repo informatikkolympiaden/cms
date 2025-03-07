@@ -33,7 +33,7 @@ from cms.grading.Sandbox import wait_without_std, Sandbox
 from cms.grading.languagemanager import LANGUAGES, get_language
 from cms.grading.steps import compilation_step, evaluation_step_before_run, \
     evaluation_step_after_run, extract_outcome_and_text, \
-    human_evaluation_message, merge_execution_stats, trusted_step
+    human_evaluation_message, merge_execution_stats, trusted_step, HumanMessage
 from cms.grading.steps.evaluation import EVALUATION_MESSAGES
 from cms.grading.tasktypes import check_files_number
 from . import TaskType, check_executables_number, check_manager_present, \
@@ -91,6 +91,8 @@ class Kattis(TaskType):
 
     IS_INTERACTIVE = "interactive"
     IS_NONINTERACTIVE = "non-interactive"
+
+    MANAGER_ERROR = "Judge error"
 
     ALLOW_PARTIAL_SUBMISSION = False
 
@@ -255,8 +257,7 @@ class Kattis(TaskType):
         evaluation_success_user = user_result[1]
         stats_user = user_result[2]
 
-        success = box_success_user \
-            and box_success_mgr and evaluation_success_mgr
+        success = box_success_user and box_success_mgr
         outcome = None
         text = None
 
@@ -269,6 +270,10 @@ class Kattis(TaskType):
         elif job.only_execution:
             outcome = 0.0
             text = [N_("Execution completed successfully")]
+
+        elif not evaluation_success_mgr:
+            outcome = 0.0
+            text = [self.MANAGER_ERROR]
 
         # If the user sandbox detected some problem (timeout, ...),
         # the outcome is 0.0 and the text describes that problem.
