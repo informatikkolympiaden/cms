@@ -45,4 +45,4 @@ class GroupSum(ScoreTypeGroup):
 
     def reduce(self, outcomes, unused_parameter):
         """See ScoreTypeGroup."""
-        return sum(outcomes)
+        return sum(outcomes) / len(outcomes)

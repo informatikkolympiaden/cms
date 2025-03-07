@@ -80,9 +80,6 @@ class SubtaskNode:
 
         score = self.conf["grading"]["score"]
 
-        if self.conf["grading"]["aggregation"] == "sum":
-            score = score / len(self.testcases)
-
         return [
             score,
             len(self.testcases)
