@@ -38,7 +38,7 @@ from cms.grading.steps.evaluation import EVALUATION_MESSAGES
 from cms.grading.tasktypes import check_files_number
 from . import TaskType, check_executables_number, check_manager_present, \
     create_sandbox, delete_sandbox, is_manager_for_compilation
-from cmscommon import digest
+
 
 logger = logging.getLogger(__name__)
 
