@@ -38,7 +38,7 @@ from cms.grading.steps.evaluation import EVALUATION_MESSAGES
 from cms.grading.tasktypes import check_files_number
 from . import TaskType, check_executables_number, check_manager_present, \
     create_sandbox, delete_sandbox, is_manager_for_compilation
-
+from cmscommon import digest
 
 logger = logging.getLogger(__name__)
 
@@ -423,6 +423,12 @@ class Kattis(TaskType):
         wait_without_std([process, manager])
 
         self._get_results(feedback_dir, sandbox_user, sandbox_mgr, job)
+
+        nextpass_path = os.path.join(feedback_dir, "nextpass.in")
+        if job.success and os.path.isfile(nextpass_path):
+            nextpass_file = file_cacher.put_file_from_path(nextpass_path)
+            job.input = nextpass_file
+            self._evaluate_interactive(job, file_cacher)
 
         delete_sandbox(sandbox_mgr, job.success, job.keep_sandbox)
         delete_sandbox(sandbox_user, job.success, job.keep_sandbox)
