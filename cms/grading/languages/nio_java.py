@@ -88,10 +88,10 @@ class NIOJavaJDK(Language):
         if NIOJavaJDK.USE_JAR:
             # executable_filename is a jar file, main is the name of
             # the main java class
-            return [["/usr/bin/java", "-Deval=true", "-Xmx512M", "-Xss64M",
+            return [["/usr/bin/java", "-Deval=true", "-Xmx2G", "-Xss256M",
                      "-cp", executable_filename, nio_main] + args]
         else:
             unzip_command = ["/usr/bin/unzip", executable_filename]
-            command = ["/usr/bin/java", "-Deval=true", "-Xmx512M", "-Xss64M",
+            command = ["/usr/bin/java", "-Deval=true", "-Xmx2G", "-Xss256M",
                        nio_main] + args
             return [unzip_command, command]
