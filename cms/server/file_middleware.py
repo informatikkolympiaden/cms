@@ -100,8 +100,8 @@ class FileServerMiddleware:
         response.status_code = 200
         response.mimetype = mimetype
         if filename is not None:
-            response.headers.add(
-                "Content-Disposition", "attachment", filename=filename)
+            attachment_kind = "inline" if mimetype.lower() == "application/pdf" else "attachment"
+            response.headers.add("Content-Disposition", attachment_kind, filename=filename)
         response.set_etag(digest)
         response.cache_control.no_cache = True
         response.cache_control.private = True
