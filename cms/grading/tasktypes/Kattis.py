@@ -92,6 +92,9 @@ class Kattis(TaskType):
     IS_INTERACTIVE = "interactive"
     IS_NONINTERACTIVE = "non-interactive"
 
+    IS_MULTIPASS = "multipass"
+    IS_SINGLEPASS = "singlepass"
+
     MANAGER_ERROR = "Judge error"
 
     ALLOW_PARTIAL_SUBMISSION = False
@@ -102,9 +105,22 @@ class Kattis(TaskType):
         "",
         {IS_INTERACTIVE: "The program is run with an interactive validator",
          IS_NONINTERACTIVE: "The program is run without an interactive validator"})
+    
+    _MULTIPASS = ParameterTypeChoice(
+        "Multipass",
+        "multipass",
+        "",
+        {IS_MULTIPASS: "The program and validator are run multiple times",
+         IS_SINGLEPASS: "The program and validator are run once"})
+    
+    _MAX_VALIDATION_PASSES = ParameterTypeInt(
+        "Validation_passes",
+        "validation_passes",
+        "Maximum number of validation passes in multipass grading"
+    )
 
 
-    ACCEPTED_PARAMETERS = [_INTERACTIVE]
+    ACCEPTED_PARAMETERS = [_INTERACTIVE, _MULTIPASS, _MAX_VALIDATION_PASSES]
 
     @property
     def name(self):
@@ -118,6 +134,12 @@ class Kattis(TaskType):
             self.interactive = True
         else:
             self.interactive = False
+
+        if len(self.parameters) >= 3 and self.parameters[1] == self.IS_MULTIPASS:
+            self.is_multipass = True
+            self.max_validation_passes = int(self.parameters[2])
+        else:
+            self.is_multipass = False
 
     def get_compilation_commands(self, submission_format):
         """See TaskType.get_compilation_commands."""
@@ -302,12 +324,15 @@ class Kattis(TaskType):
         job.text = text
         job.plus = stats_user
         
-    def _evaluate_interactive(self, job, file_cacher):
+    def _evaluate_interactive(self, job, file_cacher, remaining_passes = None):
         """See TaskType.evaluate."""
         if not check_executables_number(job, 1):
             return
         executable_filename = next(iter(job.executables.keys()))
         executable_digest = job.executables[executable_filename].digest
+
+        if remaining_passes is None:
+            remaining_passes = self.max_validation_passes
 
         # Make sure the required manager is among the job managers.
         if not check_manager_present(job, self.MANAGER_FILENAME):
@@ -426,12 +451,21 @@ class Kattis(TaskType):
 
         nextpass_path = os.path.join(feedback_dir, "nextpass.in")
         if os.path.isfile(nextpass_path):
-            if job.success:
+            # Nextpass file exists. This is only allowed if we are using multipass grading,
+            # there are remaining validation passes and the previous grader exited successfully
+            if not self.is_multipass:
+                job.text = [self.MANAGER_ERROR]
+                job.success = False
+            elif not job.success:
+                job.text = [self.MANAGER_ERROR]
+            elif remaining_passes == 1: # Will be decremented later, 1 means this is the last pass
+                job.text = [self.MANAGER_ERROR]
+                job.success = False
+            else:
+                remaining_passes -= 1
                 nextpass_file = file_cacher.put_file_from_path(nextpass_path)
                 job.input = nextpass_file
-                self._evaluate_interactive(job, file_cacher)
-            else:
-                job.text = [self.MANAGER_ERROR]
+                self._evaluate_interactive(job, file_cacher, remaining_passes)
 
         delete_sandbox(sandbox_mgr, job.success, job.keep_sandbox)
         delete_sandbox(sandbox_user, job.success, job.keep_sandbox)
