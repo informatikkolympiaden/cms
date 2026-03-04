@@ -25,6 +25,7 @@ import logging
 import os
 import tempfile
 from functools import reduce
+import shutil
 
 from cms import config, rmtree
 from cms.db import Executable
@@ -349,36 +350,17 @@ class Kattis(TaskType):
         job.text = text
         job.plus = stats_user
         
-    def _evaluate_interactive(self, job, file_cacher, remaining_passes = None):
+    def _evaluate_interactive(self, job, file_cacher):
         """See TaskType.evaluate."""
         if not check_executables_number(job, 1):
             return
         executable_filename = next(iter(job.executables.keys()))
         executable_digest = job.executables[executable_filename].digest
 
-        if remaining_passes is None:
-            remaining_passes = self.max_validation_passes
-
         # Make sure the required manager is among the job managers.
         if not check_manager_present(job, self.MANAGER_FILENAME):
             return
         manager_digest = job.managers[self.MANAGER_FILENAME].digest
-
-        # Create FIFOs.
-        fifo_dir = tempfile.mkdtemp(dir=config.temp_dir)
-        fifo_user_to_manager = os.path.join(fifo_dir, "u_to_m")
-        fifo_manager_to_user = os.path.join(fifo_dir, "m_to_u")
-
-        os.mkfifo(fifo_user_to_manager)
-        os.mkfifo(fifo_manager_to_user)
-        os.chmod(fifo_dir, 0o755)
-        os.chmod(fifo_user_to_manager, 0o666)
-        os.chmod(fifo_manager_to_user, 0o666)
-
-        # Names of the fifos after being mapped inside the sandboxes.
-        sandbox_fifo_dir = "/fifo"
-        sandbox_fifo_user_to_manager = os.path.join(sandbox_fifo_dir, "u_to_m")
-        sandbox_fifo_manager_to_user = os.path.join(sandbox_fifo_dir, "m_to_u")
 
         # Create feedback dir
         feedback_dir = tempfile.mkdtemp(dir=config.temp_dir)
@@ -394,13 +376,6 @@ class Kattis(TaskType):
             self.INPUT_FILENAME, job.input)
         sandbox_mgr.create_file_from_storage(
             self.ANSWER_FILENAME, job.output)
-
-        # Create the user sandbox(es) and copy the executable.
-        sandbox_user = create_sandbox(file_cacher, name="user_evaluate")
-        job.sandboxes.extend(sandbox_user.get_root_path())
-
-        sandbox_user.create_file_from_storage(
-            executable_filename, executable_digest, executable=True)
 
         # Start the manager. Redirecting to stdin is unnecessary, but for
         # historical reasons the manager can choose to read from there
@@ -428,69 +403,97 @@ class Kattis(TaskType):
         #     programs terminated.
         manager_time_limit = max(job.time_limit + 1.0,
                                  config.trusted_sandbox_max_time_s)
-        manager = evaluation_step_before_run(
-            sandbox_mgr,
-            manager_command,
-            manager_time_limit,
-            config.trusted_sandbox_max_memory_kib * 1024,
-            dirs_map = {
-                fifo_dir: (sandbox_fifo_dir, "rw"),
-                feedback_dir: (sandbox_feedback_dir, "rw")
-            },
-            stdin_redirect=sandbox_fifo_user_to_manager,
-            stdout_redirect=sandbox_fifo_manager_to_user,
-            multiprocess=job.multithreaded_sandbox)
 
-        # Start the user submission compiled with the stub.
-        language = get_language(job.language)
-        main = os.path.splitext(executable_filename)[0]
-        process = None
+        validation_passes = self.max_validation_passes
 
-        args = []
-        stdin_redirect = None
-        stdout_redirect = None
+        for current_pass in range(validation_passes):
+            # Create FIFOs.
+            fifo_dir = tempfile.mkdtemp(dir=config.temp_dir)
+            fifo_user_to_manager = os.path.join(fifo_dir, "u_to_m")
+            fifo_manager_to_user = os.path.join(fifo_dir, "m_to_u")
 
-        commands = language.get_evaluation_commands(
-            executable_filename,
-            main=main,
-            args=args)
-        # Assumes that the actual execution of the user solution is the
-        # last command in commands, and that the previous are "setup"
-        # that don't need tight control.
-        if len(commands) > 1:
-            trusted_step(sandbox_user[i], commands[:-1])
-        process = evaluation_step_before_run(
-            sandbox_user,
-            commands[-1],
-            job.time_limit,
-            job.memory_limit,
-            dirs_map={fifo_dir: (sandbox_fifo_dir, "rw")},
-            stdin_redirect=sandbox_fifo_manager_to_user,
-            stdout_redirect=sandbox_fifo_user_to_manager,
-            multiprocess=job.multithreaded_sandbox)
+            os.mkfifo(fifo_user_to_manager)
+            os.mkfifo(fifo_manager_to_user)
+            os.chmod(fifo_dir, 0o755)
+            os.chmod(fifo_user_to_manager, 0o666)
+            os.chmod(fifo_manager_to_user, 0o666)
 
-        # Wait for the processes to conclude, without blocking them on I/O.
-        wait_without_std([process, manager])
+            # Names of the fifos after being mapped inside the sandboxes.
+            sandbox_fifo_dir = "/fifo"
+            sandbox_fifo_user_to_manager = os.path.join(sandbox_fifo_dir, "u_to_m")
+            sandbox_fifo_manager_to_user = os.path.join(sandbox_fifo_dir, "m_to_u")
 
-        self._get_results(feedback_dir, sandbox_user, sandbox_mgr, job)
+            # Start manager
+            manager = evaluation_step_before_run(
+                sandbox_mgr,
+                manager_command,
+                manager_time_limit,
+                config.trusted_sandbox_max_memory_kib * 1024,
+                dirs_map = {
+                    fifo_dir: (sandbox_fifo_dir, "rw"),
+                    feedback_dir: (sandbox_feedback_dir, "rw")
+                },
+                stdin_redirect=sandbox_fifo_user_to_manager,
+                stdout_redirect=sandbox_fifo_manager_to_user,
+                multiprocess=job.multithreaded_sandbox)
 
-        nextpass_path = os.path.join(feedback_dir, "nextpass.in")
-        if os.path.isfile(nextpass_path):
+            # Create the user sandbox(es) and copy the executable.
+            sandbox_user = create_sandbox(file_cacher, name="user_evaluate")
+            job.sandboxes.extend(sandbox_user.get_root_path())
+
+            sandbox_user.create_file_from_storage(
+                executable_filename, executable_digest, executable=True)
+
+            # Start the user submission compiled with the stub.
+            language = get_language(job.language)
+            main = os.path.splitext(executable_filename)[0]
+            process = None
+
+            args = []
+            commands = language.get_evaluation_commands(
+                executable_filename,
+                main=main,
+                args=args)
+
+            # Assumes that the actual execution of the user solution is the
+            # last command in commands, and that the previous are "setup"
+            # that don't need tight control.
+            if len(commands) > 1:
+                trusted_step(sandbox_user[i], commands[:-1])
+            process = evaluation_step_before_run(
+                sandbox_user,
+                commands[-1],
+                job.time_limit,
+                job.memory_limit,
+                dirs_map={fifo_dir: (sandbox_fifo_dir, "rw")},
+                stdin_redirect=sandbox_fifo_manager_to_user,
+                stdout_redirect=sandbox_fifo_user_to_manager,
+                multiprocess=job.multithreaded_sandbox)
+
+            # Wait for the processes to conclude, without blocking them on I/O.
+            wait_without_std([process, manager])
+
+            self._get_results(feedback_dir, sandbox_user, sandbox_mgr, job)
+
+            # If no nextpass file is created, we end the loop
+            nextpass_path = os.path.join(feedback_dir, "nextpass.in")
+            if not os.path.isfile(nextpass_path):
+                break
+
             # Nextpass file exists. This is only allowed if we are using multipass grading,
             # there are remaining validation passes and the previous grader exited successfully
-            if not self.is_multipass:
+            if not self.is_multipass or not job.success or current_pass + 1 == validation_passes:
                 job.text = [self.MANAGER_ERROR]
                 job.success = False
-            elif not job.success:
-                job.text = [self.MANAGER_ERROR]
-            elif remaining_passes == 1: # Will be decremented later, 1 means this is the last pass
-                job.text = [self.MANAGER_ERROR]
-                job.success = False
-            else:
-                remaining_passes -= 1
-                nextpass_file = file_cacher.put_file_from_path(nextpass_path)
-                job.input = nextpass_file
-                self._evaluate_interactive(job, file_cacher, remaining_passes)
+                break
+
+            # Before the next pass, we prepare input for the manager and delete the user sandbox
+            sandbox_mgr.remove_file(self.INPUT_FILENAME)
+            shutil.move(nextpass_path, sandbox_mgr.relative_path(self.INPUT_FILENAME))
+
+            delete_sandbox(sandbox_user, job.success, job.keep_sandbox)
+            if job.success and not config.keep_sandbox and not job.keep_sandbox:
+                rmtree(fifo_dir)
 
         delete_sandbox(sandbox_mgr, job.success, job.keep_sandbox)
         delete_sandbox(sandbox_user, job.success, job.keep_sandbox)
