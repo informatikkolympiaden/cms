@@ -404,7 +404,10 @@ class Kattis(TaskType):
         manager_time_limit = max(job.time_limit + 1.0,
                                  config.trusted_sandbox_max_time_s)
 
+
         validation_passes = self.max_validation_passes
+        if not self.is_multipass:
+            validation_passes = 1
 
         for current_pass in range(validation_passes):
             # Create FIFOs.
