@@ -141,6 +141,31 @@ class Kattis(TaskType):
         else:
             self.is_multipass = False
 
+    # Overriding this method to allow tasks to have old format with only one parameter
+    def validate_parameters(self):
+        """Validate the parameters syntactically.
+
+        raise (ValueError): if the parameters are malformed.
+
+        """
+        if not isinstance(self.parameters, list):
+            raise ValueError(
+                "Task type parameters for %s are not a list" % self.__class__)
+        
+        # Old format with only interactive/noninteractive. Assume singlepass
+        if len(self.parameters) == 1:
+            self.parameters += ["singlepass", 0]
+
+        if len(self.parameters) != len(self.ACCEPTED_PARAMETERS):
+            raise ValueError(
+                "Task type %s should have %s parameters, received %s" %
+                (self.__class__,
+                 len(self.ACCEPTED_PARAMETERS),
+                 len(self.parameters)))
+
+        for value, parameter in zip(self.parameters, self.ACCEPTED_PARAMETERS):
+            parameter.validate(value)
+
     def get_compilation_commands(self, submission_format):
         """See TaskType.get_compilation_commands."""
         codenames_to_compile = []
