@@ -425,10 +425,13 @@ class Kattis(TaskType):
         self._get_results(feedback_dir, sandbox_user, sandbox_mgr, job)
 
         nextpass_path = os.path.join(feedback_dir, "nextpass.in")
-        if job.success and os.path.isfile(nextpass_path):
-            nextpass_file = file_cacher.put_file_from_path(nextpass_path)
-            job.input = nextpass_file
-            self._evaluate_interactive(job, file_cacher)
+        if os.path.isfile(nextpass_path):
+            if job.success:
+                nextpass_file = file_cacher.put_file_from_path(nextpass_path)
+                job.input = nextpass_file
+                self._evaluate_interactive(job, file_cacher)
+            else:
+                job.text = [self.MANAGER_ERROR]
 
         delete_sandbox(sandbox_mgr, job.success, job.keep_sandbox)
         delete_sandbox(sandbox_user, job.success, job.keep_sandbox)
