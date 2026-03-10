@@ -561,8 +561,10 @@ class Kattis(TaskType):
             sandbox_user.create_file_from_storage(
                 executable_filename, executable_digest, executable=True)
 
-            sandbox_user.create_file_from_storage(
-                self.INPUT_FILENAME, job.input)
+            # Copy manager input to user sandbox
+            shutil.copyfile(
+                sandbox_mgr.relative_path(self.INPUT_FILENAME),
+                sandbox_user.relative_path(self.INPUT_FILENAME))
 
             # Start the user submission compiled with the stub.
             language = get_language(job.language)
