@@ -115,7 +115,7 @@ class Kattis(TaskType):
          IS_SINGLEPASS: "The program and validator are run once"})
     
     _MAX_VALIDATION_PASSES = ParameterTypeInt(
-        "Validation_passes",
+        "Validation passes",
         "validation_passes",
         "Maximum number of validation passes in multipass grading"
     )
