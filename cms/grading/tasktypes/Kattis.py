@@ -612,7 +612,9 @@ class Kattis(TaskType):
 
             self._get_results(feedback_dir, sandbox_user, sandbox_mgr, job)
 
-            # Remove output from submission
+            # Remove the output recieved from the submission. The output directory
+            # is used for the next pass, and if the output file already exists,
+            # the user process crashes.
             os.remove(os.path.join(output_dir, "output.txt"))
 
             # If no nextpass file is created, we end the loop
