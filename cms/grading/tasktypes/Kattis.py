@@ -141,6 +141,7 @@ class Kattis(TaskType):
             self.max_validation_passes = int(self.parameters[2])
         else:
             self.is_multipass = False
+            self.max_validation_passes = 1
 
     # Overriding this method to allow tasks to have old format with only one parameter
     def validate_parameters(self):
