@@ -242,6 +242,17 @@ class KattisLoader(TaskLoader):
                 args["task_type_parameters"] += ["interactive"]
             else:
                 args["task_type_parameters"] += ["non-interactive"]
+
+            if "multipass" in task_type:
+                max_passes = 2
+                if conf.get("limits") is not None and "validation_passes" in conf["limits"]:
+                    max_passes = int(conf["limits"]["validation_passes"])
+
+                args["task_type_parameters"] += ["multipass", max_passes]
+            else:
+                args["task_type_parameters"] += ["singlepass", 0]
+
+
         else:
             # If no output validator we set task type to Batch
             compilation_param = "alone"
