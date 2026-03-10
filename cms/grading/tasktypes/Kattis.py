@@ -522,47 +522,6 @@ class Kattis(TaskType):
         sandbox_output_dir = "/output"
         sandbox_output_filename = os.path.join(sandbox_output_dir, "output.txt")
 
-        # Create the user sandbox(es) and copy the executable.
-        sandbox_user = create_sandbox(file_cacher, name="user_evaluate")
-        job.sandboxes.extend(sandbox_user.get_root_path())
-
-        sandbox_user.create_file_from_storage(
-            executable_filename, executable_digest, executable=True)
-
-        sandbox_user.create_file_from_storage(
-            self.INPUT_FILENAME, job.input)
-
-        # Start the user submission compiled with the stub.
-        language = get_language(job.language)
-        main = os.path.splitext(executable_filename)[0]
-        process = None
-
-        args = []
-        stdin_redirect = None
-        stdout_redirect = None
-
-        commands = language.get_evaluation_commands(
-            executable_filename,
-            main=main,
-            args=args)
-        # Assumes that the actual execution of the user solution is the
-        # last command in commands, and that the previous are "setup"
-        # that don't need tight control.
-        if len(commands) > 1:
-            trusted_step(sandbox_user[i], commands[:-1])
-        process = evaluation_step_before_run(
-            sandbox_user,
-            commands[-1],
-            job.time_limit,
-            job.memory_limit,
-            dirs_map={output_dir: (sandbox_output_dir, "rw")},
-            stdin_redirect=self.INPUT_FILENAME,
-            stdout_redirect=sandbox_output_filename,
-            multiprocess=job.multithreaded_sandbox)
-
-        # Wait for the processes to conclude, without blocking them on I/O.
-        wait_without_std([process])
-
         feedback_dir = tempfile.mkdtemp(dir=config.temp_dir)
         sandbox_feedback_dir = "/feedback"
         os.chmod(feedback_dir, 0o777)
@@ -588,22 +547,85 @@ class Kattis(TaskType):
         ]
 
         manager_time_limit = max(job.time_limit + 1.0,
-                                 config.trusted_sandbox_max_time_s)
-        manager = evaluation_step_before_run(
-            sandbox_mgr,
-            manager_command,
-            manager_time_limit,
-            config.trusted_sandbox_max_memory_kib * 1024,
-            dirs_map = {
-                output_dir: (sandbox_output_dir, "rw"),
-                feedback_dir: (sandbox_feedback_dir, "rw")
-            },
-            stdin_redirect=sandbox_output_filename,
-            multiprocess=job.multithreaded_sandbox)
+                                config.trusted_sandbox_max_time_s)
 
-        wait_without_std([manager])
+        validation_passes = self.max_validation_passes
+        if not self.is_multipass:
+            validation_passes = 1
 
-        self._get_results(feedback_dir, sandbox_user, sandbox_mgr, job)
+        for current_pass in range(validation_passes):
+            # Create the user sandbox(es) and copy the executable.
+            sandbox_user = create_sandbox(file_cacher, name="user_evaluate")
+            job.sandboxes.extend(sandbox_user.get_root_path())
+
+            sandbox_user.create_file_from_storage(
+                executable_filename, executable_digest, executable=True)
+
+            sandbox_user.create_file_from_storage(
+                self.INPUT_FILENAME, job.input)
+
+            # Start the user submission compiled with the stub.
+            language = get_language(job.language)
+            main = os.path.splitext(executable_filename)[0]
+            process = None
+
+            args = []
+            commands = language.get_evaluation_commands(
+                executable_filename,
+                main=main,
+                args=args)
+
+            # Assumes that the actual execution of the user solution is the
+            # last command in commands, and that the previous are "setup"
+            # that don't need tight control.
+            if len(commands) > 1:
+                trusted_step(sandbox_user[i], commands[:-1])
+            process = evaluation_step_before_run(
+                sandbox_user,
+                commands[-1],
+                job.time_limit,
+                job.memory_limit,
+                dirs_map={output_dir: (sandbox_output_dir, "rw")},
+                stdin_redirect=self.INPUT_FILENAME,
+                stdout_redirect=sandbox_output_filename,
+                multiprocess=job.multithreaded_sandbox)
+
+            # Wait for the processes to conclude, without blocking them on I/O.
+            wait_without_std([process])
+
+            manager = evaluation_step_before_run(
+                sandbox_mgr,
+                manager_command,
+                manager_time_limit,
+                config.trusted_sandbox_max_memory_kib * 1024,
+                dirs_map = {
+                    output_dir: (sandbox_output_dir, "rw"),
+                    feedback_dir: (sandbox_feedback_dir, "rw")
+                },
+                stdin_redirect=sandbox_output_filename,
+                multiprocess=job.multithreaded_sandbox)
+
+            wait_without_std([manager])
+
+            self._get_results(feedback_dir, sandbox_user, sandbox_mgr, job)
+
+            # If no nextpass file is created, we end the loop
+            nextpass_path = os.path.join(feedback_dir, "nextpass.in")
+            if not os.path.isfile(nextpass_path):
+                break
+
+            # Nextpass file exists. This is only allowed if we are using multipass grading,
+            # there are remaining validation passes and the previous grader exited successfully
+            if not self.is_multipass or not job.success or current_pass + 1 == validation_passes:
+                job.text = [self.MANAGER_ERROR]
+                job.success = False
+                break
+
+            # Before the next pass, we prepare input for the manager and delete the user sandbox
+            sandbox_mgr.remove_file(self.INPUT_FILENAME)
+            shutil.move(nextpass_path, sandbox_mgr.relative_path(self.INPUT_FILENAME))
+
+            delete_sandbox(sandbox_user, job.success, job.keep_sandbox)
 
         delete_sandbox(sandbox_mgr, job.success, job.keep_sandbox)
         delete_sandbox(sandbox_user, job.success, job.keep_sandbox)
