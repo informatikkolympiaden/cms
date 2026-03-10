@@ -518,11 +518,6 @@ class Kattis(TaskType):
             return
         manager_digest = job.managers[self.MANAGER_FILENAME].digest
 
-        output_dir = tempfile.mkdtemp(dir=config.temp_dir)
-        os.chmod(output_dir, 0o777)
-        sandbox_output_dir = "/output"
-        sandbox_output_filename = os.path.join(sandbox_output_dir, "output.txt")
-
         feedback_dir = tempfile.mkdtemp(dir=config.temp_dir)
         sandbox_feedback_dir = "/feedback"
         os.chmod(feedback_dir, 0o777)
@@ -555,6 +550,11 @@ class Kattis(TaskType):
             validation_passes = 1
 
         for current_pass in range(validation_passes):
+            output_dir = tempfile.mkdtemp(dir=config.temp_dir)
+            os.chmod(output_dir, 0o777)
+            sandbox_output_dir = "/output"
+            sandbox_output_filename = os.path.join(sandbox_output_dir, "output.txt")
+
             # Create the user sandbox(es) and copy the executable.
             sandbox_user = create_sandbox(file_cacher, name="user_evaluate")
             job.sandboxes.extend(sandbox_user.get_root_path())
@@ -612,9 +612,6 @@ class Kattis(TaskType):
 
             self._get_results(feedback_dir, sandbox_user, sandbox_mgr, job)
 
-            # Remove output file
-            os.remove(sandbox_output_filename)
-
             # If no nextpass file is created, we end the loop
             nextpass_path = os.path.join(feedback_dir, "nextpass.in")
             if not os.path.isfile(nextpass_path):
@@ -637,7 +634,6 @@ class Kattis(TaskType):
         delete_sandbox(sandbox_user, job.success, job.keep_sandbox)
         if job.success and not config.keep_sandbox and not job.keep_sandbox:
             rmtree(feedback_dir)
-            rmtree(output_dir)
 
     def evaluate(self, job, file_cacher):
         """See TaskType.evaluate."""
