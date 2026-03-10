@@ -139,6 +139,8 @@ class Kattis(TaskType):
         if len(self.parameters) >= 3 and self.parameters[1] == self.IS_MULTIPASS:
             self.is_multipass = True
             self.max_validation_passes = int(self.parameters[2])
+            if self.max_validation_passes <= 0:
+                self.max_validation_passes = 1
         else:
             self.is_multipass = False
             self.max_validation_passes = 1
