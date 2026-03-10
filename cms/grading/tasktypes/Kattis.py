@@ -612,6 +612,9 @@ class Kattis(TaskType):
 
             self._get_results(feedback_dir, sandbox_user, sandbox_mgr, job)
 
+            # Remove output file
+            os.remove(sandbox_output_filename)
+
             # If no nextpass file is created, we end the loop
             nextpass_path = os.path.join(feedback_dir, "nextpass.in")
             if not os.path.isfile(nextpass_path):
@@ -634,6 +637,7 @@ class Kattis(TaskType):
         delete_sandbox(sandbox_user, job.success, job.keep_sandbox)
         if job.success and not config.keep_sandbox and not job.keep_sandbox:
             rmtree(feedback_dir)
+            rmtree(output_dir)
 
     def evaluate(self, job, file_cacher):
         """See TaskType.evaluate."""
